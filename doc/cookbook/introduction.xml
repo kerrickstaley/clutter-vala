@@ -91,10 +91,7 @@
 
       <informalexample>
         <programlisting>
-cc \
-  `pkg-config --cflags clutter-1.0` \
-  -o <emphasis>example</emphasis> <emphasis>example</emphasis>.c \
-  `pkg-config --libs clutter-1.0`
+valac --pkg clutter-1.0 <emphasis>example</emphasis>.vala
         </programlisting>
       </informalexample>
 
