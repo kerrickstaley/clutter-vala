@@ -14,13 +14,8 @@
     <title>Introduction</title>
     <para>Once you have set up a scene on the stage, in order to respond
     to user interaction you will have to handle events coming from the
-    underlying platform.</para>
-
-    <para>Events are relayed to actors by Clutter in form of
-    <emphasis>signals</emphasis>; signals are a facility provided by the
-    GObject framework to call functions depending on a unique name. A signal
-    can be thought as a message that an object instance broadcasts to various
-    listener functions.</para>
+    underlying platform. Events are relayed to actors by Clutter in form
+    of Vala signals.</para>
 
     <para>There are various events that Clutter will handle: mostly, they
     deal with input devices, like a mouse pointer or a keyboard; but they can
@@ -48,11 +43,6 @@
     value of <emphasis>true</emphasis>, which means that the event has been
     handled. If an event hasn't  been handled, a boolean value of
     <emphasis>false</emphasis> should be returned instead.</para>
-
-    <note><para>Clutter provides two useful macros to avoid remembering which
-    boolean value should be used in an event signal handler:
-    CLUTTER_EVENT_PROPAGATE, equivalent to FALSE; and CLUTTER_EVENT_STOP,
-    equivalent to TRUE.</para></note>
   </section>
 
   <section id="events-handling-key-events">
@@ -76,7 +66,7 @@
         </listitem>
         <listitem>
           <para><emphasis>Solution 2:</emphasis> Use an actor's
-          <type>ClutterBindingPool</type> to declaratively assign
+          <type>BindingPool</type> to declaratively assign
           actions to specific key and modifier combinations.</para>
         </listitem>
       </orderedlist>
@@ -96,7 +86,7 @@
 
         <informalexample>
           <programlisting>
-g_signal_connect (actor, "key-press-event", G_CALLBACK (_key_press_cb), NULL);
+actor.key_press_event.connect(key_press_cb);
           </programlisting>
         </informalexample>
 
@@ -109,32 +99,29 @@ g_signal_connect (actor, "key-press-event", G_CALLBACK (_key_press_cb), NULL);
         <informalexample>
           <programlisting>
 <![CDATA[
-static gboolean
-_key_press_cb (ClutterActor *actor,
-               ClutterEvent *event,
-               gpointer      user_data)
-{
-  guint keyval = clutter_event_get_key_symbol (event);
+bool
+key_press_cb(Actor source,
+             Event event) {
+  int keyval = event.get_key_symbol();
 
-  ClutterModifierType state = clutter_event_get_state (event);
-  gboolean shift_pressed = (state & CLUTTER_SHIFT_MASK ? TRUE : FALSE);
-  gboolean ctrl_pressed = (state & CLUTTER_CONTROL_MASK ? TRUE : FALSE);
+  ModifierType state = event.get_state();
+  bool shift_pressed = (state & ModifierType.SHIFT_MASK ? true : false);
+  bool ctrl_pressed = (state & ModifierType.CONTROL_MASK ? true : false);
 
-  if (CLUTTER_KEY_Up == keyval)
-    {
-      if (shift_pressed & ctrl_pressed)
-        g_debug ("Up and shift and control pressed");
-      else if (shift_pressed)
-        g_debug ("Up and shift pressed");
-      else
-        g_debug ("Up pressed");
+  if (keyval == Key.Up) {
+    if (shift_pressed & ctrl_pressed)
+      stdout.printf("Up and shift and control pressed\n");
+    else if (shift_pressed)
+      stdout.printf("Up and shift pressed\n");
+    else
+      stdout.printf("Up pressed\n");
 
       /* The event was handled, and the emission should stop */
-      return CLUTTER_EVENT_STOP;
-    }
+    return true;
+  }
 
   /* The event was not handled, and the emission should continue */
-  return CLUTTER_EVENT_PROPAGATE;
+  return false;
 }
 ]]>
           </programlisting>
@@ -142,17 +129,18 @@ _key_press_cb (ClutterActor *actor,
 
         <note>
           <para>Clutter provides a range of key value definitions
-          (like <constant>CLUTTER_KEY_Up</constant>, used above). These are
+          (like <constant>Key.Up</constant>, used above). These are
           generated from the list in the
           <ulink url="http://cgit.freedesktop.org/xorg/proto/x11proto/plain/keysymdef.h">X.Org source code</ulink>
-          (replace "XK" with "CLUTTER_KEY" in the definitions there to get the
-          Clutter equivalents; alternatively, look at the
-          <filename>clutter-keysyms.h</filename> header file for the
-          list).</para>
+          (replace "XK" with "Key." in the definitions there to get the
+          Clutter equivalents). Alternatively, look at the
+          <ulink url="http://www.valadoc.org/#!api=clutter-1.0/Clutter.Key">
+            online list
+          </ulink>.</para>
 
-          <para><constant>CLUTTER_SHIFT_MASK</constant>,
-          <constant>CLUTTER_CONTROL_MASK</constant> and other modifiers are
-          defined in the <type>ClutterModifierType</type> enum.</para>
+          <para><constant>ModifierType.SHIFT_MASK</constant>,
+          <constant>ModifierType.CONTROL_MASK</constant>, and other modifiers are
+          defined in the <type>ModifierType</type> enum.</para>
         </note>
 
       </section>
@@ -160,7 +148,7 @@ _key_press_cb (ClutterActor *actor,
       <section>
         <title>Solution 2</title>
 
-        <para>Assign actions to an actor's <type>ClutterBindingPool</type>.
+        <para>Assign actions to an actor's <type>BindingPool</type>.
         A binding pool stores mappings from a key press (either a single key
         or a key plus modifiers) to actions; an action is simply a callback
         function with a specific signature.</para>
@@ -174,65 +162,54 @@ _key_press_cb (ClutterActor *actor,
         <para>To use this approach with an actor which will receive key press
         events, first get that actor's binding pool. In the example below,
         we're using the binding pool for the default
-        <type>ClutterStage</type>:</para>
+        <type>Stage</type>:</para>
 
         <informalexample>
           <programlisting>
-ClutterBindingPool *binding_pool;
-GObjectClass *stage_class;
-
-stage_class = CLUTTER_STAGE_GET_CLASS (stage);
-binding_pool = clutter_binding_pool_get_for_class (stage_class);
+BindingPool binding_pool = BindingPool.get_for_class(Stage);
           </programlisting>
         </informalexample>
 
         <para>Next, install actions into the binding pool. For example, to
         install an action bound to the up arrow key, which calls the
-        <function>_move_up()</function> function when that key is pressed,
+        <function>move_up()</function> method when that key is pressed,
         you would do:</para>
 
         <informalexample>
           <programlisting>
-clutter_binding_pool_install_action (binding_pool,
-                                     "move-up",      /* identifier */
-                                     CLUTTER_KEY_Up, /* up arrow pressed */
-                                     0,              /* no modifiers pressed */
-                                     G_CALLBACK (_move_up),
-                                     NULL,           /* no user data passed */
-                                     NULL);
+binding_pool.install_action("move-up",    /* identifier */
+                            Key.Up,       /* up arrow pressed */
+                            0,            /* no modifiers pressed */
+                            move_up);
           </programlisting>
         </informalexample>
 
         <para>Another example, binding up arrow +
         <keycap>Shift</keycap> + <keycap>Ctrl</keycap> to an action
-        which calls <function>_move_up_shift_control()</function> when
+        which calls <function>move_up_shift_control()</function> when
         activated:</para>
 
         <informalexample>
           <programlisting>
-clutter_binding_pool_install_action (binding_pool,
-                                     "move-up-shift-control",
-                                     CLUTTER_KEY_Up,
-                                     CLUTTER_SHIFT_MASK + CLUTTER_CONTROL_MASK,
-                                     G_CALLBACK (_move_up_shift_control),
-                                     NULL,
-                                     NULL);
+binding_pool.install_action("move-up-shift-control",
+                            Key.Up,
+                            ModifierType.SHIFT_MASK + ModifierType.CONTROL_MASK,
+                            move_up_shift_control);
           </programlisting>
         </informalexample>
 
-        <para>The function called when an action is activated looks
-        like this (for <function>_move_up()</function>):</para>
+        <para>The method called when an action is activated looks
+        like this (for <function>move_up()</function>):</para>
 
         <informalexample>
           <programlisting>
-static void
-_move_up (GObject             *instance,
-          const gchar         *action_name,
-          guint                key_val,
-          ClutterModifierType  modifiers,
-          gpointer             user_data)
-{
-  g_debug ("Up pressed");
+void
+move_up(Actor instance,
+        string action_name,
+        int key_val,
+        ModifierType modifiers) {
+  
+  stdout.printf("Up pressed\n");
 }
           </programlisting>
         </informalexample>
@@ -242,10 +219,7 @@ _move_up (GObject             *instance,
 
         <informalexample>
           <programlisting>
-g_signal_connect (stage,
-                  "key-press-event",
-                  G_CALLBACK (_key_press_cb),
-                  NULL);
+Stage.get_default().key_press_event.connect(key_press_cb);
           </programlisting>
         </informalexample>
 
@@ -255,19 +229,13 @@ g_signal_connect (stage,
 
         <informalexample>
           <programlisting>
-static gboolean
-_key_press_cb (ClutterActor *actor,
-             ClutterEvent *event,
-             gpointer      user_data)
-{
-  ClutterBindingPool *pool;
+bool
+key_press_cb(Actor actor,
+             Event event) {
+  
+  BindingPool pool = BindingPool.find(actor.get_type().name());
 
-  pool = clutter_binding_pool_find (G_OBJECT_TYPE_NAME (actor));
-
-  return clutter_binding_pool_activate (pool,
-                                        clutter_event_get_key_symbol (event),
-                                        clutter_event_get_state (event),
-                                        G_OBJECT (actor));
+  return pool.activate(event.get_key_symbol(), event.get_state(), actor);
 }
           </programlisting>
         </informalexample>
@@ -299,7 +267,7 @@ _key_press_cb (ClutterActor *actor,
 
         <para>In addition, Solution 2 lets you write a single callback to
         handle all key press events for all actors. This callback could then
-        use <function>clutter_binding_pool_find()</function>
+        use <function>BindingPool.find()</function>
         (as in the example code) to determine which binding pool to
         activate (depending on which actor received the key press
         event).</para>
@@ -320,7 +288,7 @@ _key_press_cb (ClutterActor *actor,
 
         <itemizedlist>
           <listitem>
-            <para>A <type>ClutterKeyEvent</type> contains only a
+            <para>A <type>KeyEvent</type> contains only a
             <emphasis>single</emphasis> key value, plus possibly one
             or more modifier keys (like <keycap>Shift</keycap>,
             <keycap>Ctrl</keycap>, <keycap>Alt</keycap> etc.).
@@ -332,15 +300,15 @@ _key_press_cb (ClutterActor *actor,
           <listitem>
             <para>By default, the stage receives all key events.
             To make another actor receive key events, use
-            <function>clutter_stage_set_key_focus()</function>:</para>
+            <function>Stage.set_key_focus()</function>:</para>
 
             <informalexample>
               <programlisting>
 /*
- * stage is a ClutterStage instance;
- * actor is the ClutterActor instance which should receive key events
+ * stage is a Stage instance;
+ * actor is the Actor instance which should receive key events
  */
-clutter_stage_set_key_focus (stage, actor);
+stage.set_key_focus(actor);
               </programlisting>
             </informalexample>
           </listitem>
@@ -375,7 +343,7 @@ clutter_stage_set_key_focus (stage, actor);
       <informalexample>
         <programlisting>
 <![CDATA[
-clutter_actor_set_reactive (actor, TRUE);
+actor.reactive = true;
 ]]>
         </programlisting>
       </informalexample>
@@ -386,33 +354,26 @@ clutter_actor_set_reactive (actor, TRUE);
       <informalexample>
         <programlisting>
 <![CDATA[
-static gboolean
-_scroll_event_cb (ClutterActor *actor,
-                  ClutterEvent *event,
-                  gpointer      user_data)
-{
-  /* determine the direction the mouse was scrolled */
-  ClutterScrollDirection direction;
-  direction = clutter_event_get_scroll_direction (event);
-
+bool
+scroll_event_cb(Actor actor,
+                ScrollEvent event) {  
   /* replace these stubs with real code to move the actor etc. */
-  switch (direction)
-    {
-    case CLUTTER_SCROLL_UP:
-      g_debug ("Scrolled up");
-      break;
-    case CLUTTER_SCROLL_DOWN:
-      g_debug ("Scrolled down");
-      break;
-    case CLUTTER_SCROLL_RIGHT:
-      g_debug ("Scrolled right");
-      break;
-    case CLUTTER_SCROLL_LEFT:
-      g_debug ("Scrolled left");
-      break;
-    }
+  switch (event.direction) {
+  case ScrollDirection.UP:
+    stdout.printf("Scrolled up\n");
+    break;
+  case ScrollDirection.DOWN:
+    stdout.printf("Scrolled down\n");
+    break;
+  case ScrollDirection.RIGHT:
+    stdout.printf("Scrolled right\n");
+    break;
+  case ScrollDirection.LEFT:
+    stdout.printf("Scrolled left\n");
+    break;
+  }
 
-  return CLUTTER_EVENT_STOP; /* event has been handled */
+  return true; /* event has been handled */
 }
 ]]>
         </programlisting>
@@ -424,10 +385,7 @@ _scroll_event_cb (ClutterActor *actor,
       <informalexample>
         <programlisting>
 <![CDATA[
-g_signal_connect (actor,
-                  "scroll-event",
-                  G_CALLBACK (_scroll_event_cb),
-                  NULL);
+actor.scroll_event.connect(scroll_event_cb);
 ]]>
         </programlisting>
       </informalexample>
@@ -483,31 +441,27 @@ g_signal_connect (actor,
         <orderedlist>
           <listitem>
             <para>Create the scrollable actor; it should be larger
-            than the viewport. This example uses a <type>ClutterTexture</type>,
-            but any <type>ClutterActor</type> will work:</para>
+            than the viewport. This example uses a <type>Texture</type>,
+            but any <type>Actor</type> will work:</para>
             <informalexample>
               <programlisting>
 /* get image file path, set up stage etc. */
 
-ClutterActor *texture;
-texture = clutter_texture_new ();
-clutter_texture_set_keep_aspect_ratio (CLUTTER_TEXTURE (texture),
-                                       TRUE);
+Texture texture = new Texture();
+texture.keep_aspect_ratio = true;
 
 /*
  * set the texture's height so it's as tall as the stage
  * (STAGE_HEIGHT is define'd at the top of the file)
  */
-clutter_actor_set_request_mode (texture, CLUTTER_REQUEST_WIDTH_FOR_HEIGHT);
-clutter_actor_set_height (texture, STAGE_HEIGHT);
+texture.request_mode = RequestMode.WIDTH_FOR_HEIGHT;
+actor.height = STAGE_HEIGHT;
 
 /*
  * load the image file;
  * see <link linkend="textures-aspect-ratio">this recipe</link> for more about loading images into textures
  */
-clutter_texture_set_from_file (CLUTTER_TEXTURE (texture),
-                               image_file_path,
-                               NULL);
+texture.set_from_file(image_file_path);
               </programlisting>
             </informalexample>
           </listitem>
@@ -515,32 +469,31 @@ clutter_texture_set_from_file (CLUTTER_TEXTURE (texture),
           <listitem>
 
             <para>Create the viewport. The simplest way to do
-            this is with a <type>ClutterGroup</type>:</para>
+            this is with a <type>Group</type>:</para>
 
             <informalexample>
               <programlisting>
 <![CDATA[
-ClutterActor *viewport;
-viewport = clutter_group_new ();
+Group viewport = new Group();
 
 /* viewport is _shorter_ than the stage (and the texture) */
-clutter_actor_set_size (viewport, STAGE_WIDTH, STAGE_HEIGHT * 0.5);
+viewport.width = STAGE_WIDTH;
+viewport.height = STAGE_HEIGHT * 0.5;
 
 /* align the viewport to the center of the stage's y axis */
-clutter_actor_add_constraint (viewport,
-                              clutter_align_constraint_new (stage, CLUTTER_BIND_Y, 0.5));
+viewport.add_constraint(AlignConstraint(stage, AlignAxis.Y_AXIS, 0.5));
 
 /* viewport needs to respond to scroll events */
-clutter_actor_set_reactive (viewport, TRUE);
+viewport.reactive = true;
 
 /* clip all actors inside the viewport to that group's allocation */
-clutter_actor_set_clip_to_allocation (viewport, TRUE);
+viewport.clip_to_allocation = true;
 ]]>
                 </programlisting>
               </informalexample>
 
-              <para>The key here is calling
-              <code>clutter_actor_set_clip_to_allocation (viewport, TRUE)</code>.
+              <para>The key here is setting
+              <code>viewport.clip_to_allocation = true;</code>.
               This configures the <varname>viewport</varname> group so
               that any of its children are clipped: i.e. only parts of
               its children which fit inside its allocation are visible. This
@@ -557,9 +510,8 @@ clutter_actor_set_clip_to_allocation (viewport, TRUE);
 
             <informalexample>
               <programlisting>
-clutter_actor_add_child (viewport, texture);
-
-clutter_actor_add_child (stage, viewport);
+viewport.add_child(texture);
+stage.add_child(viewport);
               </programlisting>
             </informalexample>
 
@@ -572,60 +524,34 @@ clutter_actor_add_child (stage, viewport);
             <informalexample>
               <programlisting>
 <![CDATA[
-static gboolean
-_scroll_event_cb (ClutterActor *viewport,
-                  ClutterEvent *event,
-                  gpointer      user_data)
-{
-  ClutterActor *scrollable = CLUTTER_ACTOR (user_data);
-
-  gfloat viewport_height = clutter_actor_get_height (viewport);
-  gfloat scrollable_height = clutter_actor_get_height (scrollable);
-
+bool
+scroll_event_cb(Actor viewport,
+                Actor scrollable,
+                ScrollEvent event) {
   /* no need to scroll if the scrollable is shorter than the viewport */
-  if (scrollable_height < viewport_height)
-    return CLUTTER_EVENT_STOP;
-
-  gfloat y = clutter_actor_get_y (scrollable);
-
-  ClutterScrollDirection direction;
-  direction = clutter_event_get_scroll_direction (event);
-
-  switch (direction)
-    {
-    case CLUTTER_SCROLL_UP:
-      y -= SCROLL_AMOUNT;
-      break;
-    case CLUTTER_SCROLL_DOWN:
-      y += SCROLL_AMOUNT;
-      break;
-
-    /* we're only interested in up and down */
-    case CLUTTER_SCROLL_LEFT:
-    case CLUTTER_SCROLL_RIGHT:
-      break;
-    }
-
-  /*
-   * the CLAMP macro returns a value for the first argument
-   * that falls within the range specified by the second and
-   * third arguments
-   *
-   * we allow the scrollable's y position to be decremented to the point
-   * where its base is aligned with the base of the viewport
-   */
-  y = CLAMP (y,
-             viewport_height - scrollable_height,
-             0.0);
-
-  /* animate the change to the scrollable's y coordinate */
-  clutter_actor_animate (scrollable,
-                         CLUTTER_EASE_OUT_CUBIC,
-                         300,
-                         "y", y,
-                         NULL);
-
-  return CLUTTER_EVENT_STOP;
+  if (scrollable.height < viewport.height)
+    return true;
+  
+  float y = scrollable.y;
+  
+  switch (event.direction) {
+  case ScrollDirection.UP:
+    y += SCROLL_AMOUNT;
+    break;
+  case ScrollDirection.DOWN:
+    y -= SCROLL_AMOUNT;
+    break;
+  case ScrollDirection.LEFT:
+  case ScrollDirection.RIGHT:
+    return true;
+  }
+  
+  scrollable.animate(AnimationMode.EASE_OUT_CUBIC,
+                     300,
+                     "y",
+                     y.clamp(viewport.height - scrollable.height, 0));
+  
+  return true;
 }
 ]]>
               </programlisting>
@@ -635,14 +561,14 @@ _scroll_event_cb (ClutterActor *viewport,
             actor up, relative to the viewport. Initially, the
             scrollable will have a <code>y</code> coordinate value
             of <code>0.0</code> (aligned to the top of the viewport).
-            Scrolling up decrements the
+            Scrolling down decrements the
             <code>y</code> coordinate (down to a minumum of
             <code>viewport_height - scrollable_height</code>). This moves
             the top of the scrollable actor "outside" the clip area of the
             viewport; simultaneously, more of the bottom part of the
             scrollable moves into the clip area, becoming visible.</para>
 
-            <para>Scrolling down increments the <code>y</code> coordinate
+            <para>Scrolling up increments the <code>y</code> coordinate
             (but only up to a maximum value of <code>0.0</code>).</para>
 
             <para>To see how this works in practice, look at
@@ -651,11 +577,11 @@ _scroll_event_cb (ClutterActor *viewport,
             set to <code>300</code> and the height of the viewport to
             <code>150</code>. This means that the <code>y</code>
             coordinate value for the scrollable actor will vary between
-            <code>-150.0</code>: <code>150</code> (the viewport's height)
-            <code>- 300</code> (the scrollable actor's height), making
-            its base visible and clipping its top; and
             <code>0.0</code>, where its top is visible and its base
-            clipped.</para>
+            clipped,</para> and <code>-150</code> where its base is
+            visible and its top is clipped (<code>-150</code> is
+            <code>150</code> (the viewport's height) minus
+            <code>300</code> (the scrollable's height)).
           </listitem>
 
           <listitem>
@@ -666,10 +592,7 @@ _scroll_event_cb (ClutterActor *viewport,
 
             <informalexample>
               <programlisting>
-g_signal_connect (viewport,
-                  "scroll-event",
-                  G_CALLBACK (_scroll_event_cb),
-                  texture);
+viewport.scroll_event.connect((viewport, event) => scroll_event_cb(viewport, scrollable, event));
               </programlisting>
             </informalexample>
           </listitem>
@@ -696,7 +619,7 @@ g_signal_connect (viewport,
       <example id="events-mouse-scroll-example">
         <title>Mouse scrolling over a <type>ClutterActor</type></title>
         <programlisting>
-<xi:include href="examples/events-mouse-scroll.c" parse="text">
+<xi:include href="examples/events-mouse-scroll.vala" parse="text">
   <xi:fallback>a code sample should be here... but isn't</xi:fallback>
 </xi:include>
         </programlisting>
@@ -744,23 +667,16 @@ g_signal_connect (viewport,
 
         <informalexample>
           <programlisting>
-ClutterActor *actor = clutter_texture_new ();
+var actor = new Texture();
 
 /* ...set size, color, image etc., depending on the actor... */
 
 /* make the actor reactive: see <link linkend="events-pointer-motion-discussion">Discussion</link> for more details */
-clutter_actor_set_reactive (actor, TRUE);
+actor.reactive = true;
 
 /* connect to the signals */
-g_signal_connect (actor,
-                  "enter-event",
-                  G_CALLBACK (_pointer_enter_cb),
-                  NULL);
-
-g_signal_connect (actor,
-                  "leave-event",
-                  G_CALLBACK (_pointer_leave_cb),
-                  NULL);
+actor.enter_event.connect(pointer_enter_cb);
+actor.leave_event.connect(leave_event_cb);
           </programlisting>
         </informalexample>
 
@@ -769,46 +685,35 @@ g_signal_connect (actor,
 
         <informalexample>
           <programlisting>
-gboolean
-_on_crossing (ClutterActor *actor,
-              ClutterEvent *event,
-              gpointer      user_data)
+bool
+on_crossing(Actor source, Event event);
           </programlisting>
         </informalexample>
 
         <para>In the callback, you can examine the event to get the
         coordinates where the pointer entered or left the actor. For
-        example, <function>_pointer_enter_cb()</function> could
+        example, <function>pointer_enter_cb()</function> could
         follow this template:</para>
 
         <informalexample id="events-pointer-motion-callback-example">
           <programlisting>
 <![CDATA[
-/* the event passed to the callback is of type ClutterCrossingEvent */
-static gboolean
-_pointer_enter_cb (ClutterActor *actor,
-                   ClutterEvent *event,
-                   gpointer      user_data)
-{
-  /* get the coordinates where the pointer crossed into the actor */
-  gfloat stage_x, stage_y;
-  clutter_event_get_coords (event, &stage_x, &stage_y);
-
+/* the event passed to the callback is of type CrossingEvent */
+bool
+pointer_enter_cb(Actor actor,
+                 CrossingEvent event) {
   /*
    * as the coordinates are relative to the stage, rather than
    * the actor which emitted the signal, it can be useful to
    * transform them to actor-relative coordinates
    */
-  gfloat actor_x, actor_y;
-  clutter_actor_transform_stage_point (actor,
-                                       stage_x, stage_y,
-                                       &actor_x, &actor_y);
-
-  g_debug ("pointer at stage x %.0f, y %.0f; actor x %.0f, y %.0f",
-           stage_x, stage_y,
-           actor_x, actor_y);
-
-  return CLUTTER_EVENT_STOP;
+  float x, y;
+  actor.transform_stage_points(event.x, event.y, out x, out y);
+  stdout.printf("pointer at stage x %.0f, y %.0f; actor x %.0f, y %.0f",
+                event.x, event.y,
+                x, y);
+  
+  return true;
 }
 ]]>
           </programlisting>
@@ -833,10 +738,7 @@ _pointer_enter_cb (ClutterActor *actor,
 /* set up the actor, make reactive etc., as above */
 
 /* connect to motion-event signal */
-g_signal_connect (actor,
-                  "motion-event",
-                  G_CALLBACK (_pointer_motion_cb),
-                  transitions);
+actor.motion_event.connect(pointer_motion_callback);
           </programlisting>
         </informalexample>
 
@@ -844,8 +746,8 @@ g_signal_connect (actor,
         the <code>enter-event/leave-event</code> signals, so you can use
         <link linkend="events-pointer-motion-callback-example">code
         similar to the above</link> to handle it. However, the
-        type of the event is a <type>ClutterMotionEvent</type>
-        (rather than a <type>ClutterCrossingEvent</type>).</para>
+        type of the event is a <type>MotionEvent</type>
+        (rather than a <type>CrossingEvent</type>).</para>
 
       </section>
 
@@ -870,7 +772,7 @@ g_signal_connect (actor,
 
           <informalexample>
             <programlisting>
-clutter_actor_set_reactive (actor, TRUE);
+actor.reactive = true;
             </programlisting>
           </informalexample>
         </listitem>
@@ -882,30 +784,27 @@ clutter_actor_set_reactive (actor, TRUE);
           <informalexample>
             <programlisting>
 /* keys and mouse buttons pressed down when the pointer moved */
-ClutterModifierType modifiers = clutter_event_get_state (event);
+event.modifier_state;
 
 /* time (since the epoch) when the event occurred */
-guint32 event_time = clutter_event_get_time (event);
+event.time;
 
 /* actor where the event originated */
-ClutterActor *actor = clutter_event_get_actor (event);
+event.source;
 
 /* stage where the event originated */
-ClutterStage *stage = clutter_event_get_stage (event);
+event.stage;
             </programlisting>
           </informalexample>
-
-          <para>There's no need to cast the event to use these
-          functions: they will work on any <type>ClutterEvent</type>.</para>
         </listitem>
 
         <listitem>
           <para>The coordinates of an event (as returned by
-          <function>clutter_event_get_coords()</function>) are relative
+          <code>event.x</code> and <code>event.y</code>) are relative
           to the stage where they originated, rather than the actor. Unless
           the actor is the same size as the stage, you'll typically want
           the actor-relative coordinates instead. To get those, use
-          <function>clutter_actor_transform_stage_point()</function>.</para>
+          <function>Actor.transform_stage_point()</function>.</para>
         </listitem>
 
       </itemizedlist>
@@ -914,7 +813,7 @@ ClutterStage *stage = clutter_event_get_stage (event);
       scribble application</link> gives a more
       thorough example of how to integrate pointer events into a
       Clutter application (in this case, for drawing on a
-      <type>ClutterTexture</type>).</para>
+      <type>Texture</type>).</para>
 
       <para>The effect of actor depth on pointer motion events is
       worth slightly deeper discussion, and is covered next.</para>
@@ -990,7 +889,7 @@ ClutterStage *stage = clutter_event_get_stage (event);
         <title>Simple button with a hover animation (change in opacity
         as the pointer enters and leaves it)</title>
         <programlisting>
-<xi:include href="examples/events-pointer-motion-crossing.c" parse="text">
+<xi:include href="examples/events-pointer-motion-crossing.vala" parse="text">
   <xi:fallback>a code sample should be here... but isn't</xi:fallback>
 </xi:include>
         </programlisting>
@@ -999,7 +898,7 @@ ClutterStage *stage = clutter_event_get_stage (event);
       <example id="events-pointer-motion-example-2">
         <title>Detecting pointer motion on a <type>ClutterRectangle</type></title>
         <programlisting>
-<xi:include href="examples/events-pointer-motion.c" parse="text">
+<xi:include href="examples/events-pointer-motion.vala" parse="text">
   <xi:fallback>a code sample should be here... but isn't</xi:fallback>
 </xi:include>
         </programlisting>
@@ -1008,7 +907,7 @@ ClutterStage *stage = clutter_event_get_stage (event);
       <example id="events-pointer-motion-example-3">
         <title>How actors influence pointer events on each other</title>
         <programlisting>
-<xi:include href="examples/events-pointer-motion-stacked.c" parse="text">
+<xi:include href="examples/events-pointer-motion-stacked.vala" parse="text">
   <xi:fallback>a code sample should be here... but isn't</xi:fallback>
 </xi:include>
         </programlisting>
@@ -1018,7 +917,7 @@ ClutterStage *stage = clutter_event_get_stage (event);
         <title>Scribbling on a <type>ClutterTexture</type> in response
         to pointer events</title>
         <programlisting>
-<xi:include href="examples/events-pointer-motion-scribbler.c" parse="text">
+<xi:include href="examples/events-pointer-motion-scribbler.vala" parse="text">
   <xi:fallback>a code sample should be here... but isn't</xi:fallback>
 </xi:include>
         </programlisting>
@@ -1077,20 +976,18 @@ ClutterStage *stage = clutter_event_get_stage (event);
 
       <informalexample>
         <programlisting>
-clutter_actor_set_reactive (actor, TRUE);
+actor.reactive = true;
         </programlisting>
       </informalexample>
 
-      <para>Next, create a function to handle the signal(s) you are
-      interested in. The function signature is the same for both the
+      <para>Next, create a method (or delegate) to handle the signal(s) you are
+      interested in. The method/delegate signature is the same for both the
       press and release signals:</para>
 
       <informalexample>
         <programlisting>
-gboolean
-callback_function (ClutterActor *actor,
-                   ClutterEvent *event,
-                   gpointer      user_data);
+bool
+callback_method(Actor actor, ButtonEvent event);
         </programlisting>
       </informalexample>
 
@@ -1102,61 +999,55 @@ callback_function (ClutterActor *actor,
 
       <informalexample>
         <programlisting>
-/* <varname>event</varname> is a <type>ClutterButtonEvent</type>
+/*
+ * <varname>event</varname> is a <type>ButtonEvent</type>
  * for both the press and the release signal; it contains
  * data about where the event occurred
  */
-static gboolean
-button_event_cb (ClutterActor *actor,
-                 ClutterEvent *event,
-                 gpointer      user_data)
+bool
+button_event_cb (Actor actor, ButtonEvent event)
 {
-  gfloat x, y;
-  gchar *event_type;
-  guint button_pressed;
-  ClutterModifierType state;
-  gchar *ctrl_pressed;
-  guint32 click_count;
-
-  /* where the pointer was (relative to the stage)
-   * when the button event occurred; use
-   * <function>clutter_actor_transform_stage_point()</function>
-   * to transform to actor-relative coordinates
+  /*
+   * <varname>event.button</varname> indicates which button
+   * triggered the event (e.g. 1 for the primary
+   * button)
+   *
+   * <varname>event.type</varname> indicates the type of event;
+   * it will be one of EventType.BUTTON_PRESSED
+   * and EventType.BUTTON_RELEASED
+   *
+   * <varname>event.x</varname> and <varname>event.y</varname> indicate
+   * where the pointer was (relative to the stage)
+   *
+   * <varname>event.button</varname> indicates which button
+   * triggered the event
+   *
+   * <varname>event.modifier_state</varname> indicates which keys were down
+   * when the event occurred; it is a bitmask
+   * of values from the <type>ModifierType</type> enum
+   *
+   * <varname>event.click_count</varname> indicates how many
+   * times the button was clicked (i.e. 1 for
+   * a single-click and 2 for a double-click)
    */
-  clutter_event_get_coords (event, &amp;x, &amp;y);
 
-  /* check whether it was a press or release event */
-  event_type = "released";
-  if (clutter_event_type (event) == CLUTTER_BUTTON_PRESS)
-    event_type = "pressed";
+  string event_type = "pressed";
+  if (event.type == EventType.BUTTON_RELEASE)
+    event_type = "released";
 
-  /* which button triggered the event */
-  button_pressed = clutter_event_get_button (event);
-
-  /* keys down when the event occurred;
-   * this is a bit mask composed of the bits for each key held down
-   * when the button was pressed or released; see the
-   * <type>ClutterModifierType</type> enum in the Clutter API docs
-   * for a list of the available modifiers
-   */
-  state = clutter_event_get_state (event);
-
-  ctrl_pressed = "ctrl not pressed";
-  if (state &amp; CLUTTER_CONTROL_MASK)
+  string ctrl_pressed = "ctrl not pressed";
+  if ((event.modifier_state &amp; ModifierType.CONTROL_MASK &gt; 0)
     ctrl_pressed = "ctrl pressed";
 
-  /* click count */
-  click_count = clutter_event_get_click_count (event);
+  stderr.printf("button %d was %s at %.0f,%.0f; %s; click count %d",
+                event.button,
+                event_type,
+                event.x,
+                event.y,
+                ctrl_pressed,
+                event.click_count);
 
-  g_debug ("button %d was %s at %.0f,%.0f; %s; click count %d",
-           button_pressed,
-           event_type,
-           x,
-           y,
-           ctrl_pressed,
-           click_count);
-
-  return CLUTTER_EVENT_STOP;
+  return true;
 }
         </programlisting>
       </informalexample>
@@ -1166,43 +1057,30 @@ button_event_cb (ClutterActor *actor,
       <informalexample>
         <programlisting>
 /* connect the press event */
-g_signal_connect (actor,
-                  "button-press-event",
-                  G_CALLBACK (button_event_cb),
-                  NULL);
+actor.button_press_event.connect(button_event_cb);
 
 /* connect the release event */
-g_signal_connect (actor,
-                  "button-release-event",
-                  G_CALLBACK (button_event_cb),
-                  NULL);
+actor.button_release_event.connect(button_event_cb);
         </programlisting>
       </informalexample>
 
       <para>Pressing or releasing a button on the actor will now
       trigger a call to the <function>button_event_cb()</function>
-      function. See <link linkend="events-buttons-example-1">the full
+      method. See <link linkend="events-buttons-example-1">the full
       example</link> for more details.</para>
 
     </section>
 
     <section>
       <title>Discussion</title>
-
-      <para>Properties of the <type>ClutterButtonEvent</type>
-      emitted by both signals should be examined using the
-      <function>clutter_event_*</function> functions (rather than struct
-      members directly), as in the example above. While most of these
-      functions are self-explanatory, a couple require more explanation:
-      see the sections below.</para>
-
-      <para>Also covered below is an alternative approach to handling a
-      button press followed by a release on a single actor: by adding
+      
+      <para>Covered below is another way to handle a button press
+      followed by a release on a single actor: by adding
       a <type>ClutterClickAction</type> to an actor. See
       <link linkend="events-buttons-clutterclickaction">this section</link>
       for details.</para>
 
-      <para>Finally, a <link linkend="events-buttons-example-3">longer
+      <para>Also, a <link linkend="events-buttons-example-3">longer
       example</link> is included, showing how to make use of button press,
       button release and pointer events in a simple drawing application.</para>
 
@@ -1210,24 +1088,24 @@ g_signal_connect (actor,
         <title>Click count</title>
 
         <para>The click count records the number of times a press/release
-        pair occurred in sequence. You can retrieve it via the
-        <function>clutter_event_get_click_count()</function> function.</para>
+        pair occurred in sequence; it is stored in
+        <varname>event.click_count</varname>.</para>
 
         <note>
           <para>A press/release pair is effectively a click, so this term
           will be used from now on throughout this section,
           to make the explanation simpler. However, the click count has
-          nothing to do with <type>ClutterClickActions</type>, described
+          nothing to do with <type>ClickAction</type>s, described
           <link linkend="events-buttons-clutterclickaction">later</link>.
           </para>
         </note>
 
         <para>For clicks to be considered part of the same sequence (for
         the purposes of counting), all the clicks after the first one
-        must occur within the global <varname>double_click_distance</varname>
+        must occur within <varname>Settings.double_click_distance</varname>
         (pixels) of the first click; and the time between click
         <code>n</code> and click <code>n+1</code> must be <code>&lt;=</code>
-        the global <varname>double_click_time</varname> (milliseconds).</para>
+        <varname>Settings.double_click_time</varname> (milliseconds).</para>
 
         <para>The clicks <emphasis>do not</emphasis> have to occur on
         the same actor: providing they occur within the double click
@@ -1236,38 +1114,16 @@ g_signal_connect (actor,
         on a reactive actor: providing they happen somewhere on the
         stage, they will still increment the click count.</para>
 
-        <para>The default double click time and distance are
-        stored in the <type>ClutterSettings</type> associated
-        with an application. You can get/set their values like this:</para>
-
-        <informalexample>
-          <programlisting>
-gint double_click_distance;
-gint double_click_time;
-
-ClutterSettings *settings = clutter_settings_get_default ();
-
-/* get double click settings */
-g_object_get (settings,
-              "double-click-distance", &amp;double_click_distance,
-              "double-click-time", &amp;double_click_time,
-              NULL);
-
-/* set */
-g_object_set (settings,
-              "double-click-distance", 50,
-              "double-click-time", 1000,
-              NULL);
-          </programlisting>
-        </informalexample>
-
+        <para>Reasonable defaults for the double click time and distance
+        are stored in <type>Settings</type> when Clutter starts, but
+        you can override these values.</para>
       </section>
 
       <section>
         <title>Button numbering</title>
 
-        <para><function>clutter_event_get_button()</function> returns
-        an integer representing the pressed or released button.</para>
+        <para><varname>event.button</varname> is an integer
+        representing the pressed or released button.</para>
 
         <para>In the case of a standard scroll mouse, the numbers
         returned are reliable across different hardware models:</para>
@@ -1286,9 +1142,10 @@ g_object_set (settings,
           </listitem>
         </itemizedlist>
 
-        <note><para>Clutter provides symbolic names for the three buttons
-        above: CLUTTER_BUTTON_PRIMARY, CLUTTER_BUTTON_MIDDLE, and
-        CLUTTER_BUTTON_SECONDARY.</para></note>
+        <note><para>Clutter uses the same values as GDK for the 3 buttons
+        above, so you can use the symbolic names provided by GDK:
+        Gdk.BUTTON_PRIMARY, Gdk.BUTTON_MIDDLE, and
+        Gdk.BUTTON_SECONDARY.</para></note>
 
         <para>For mice with more buttons, or other types of
         input devices, the mappings may not be so
@@ -1298,13 +1155,13 @@ g_object_set (settings,
       </section>
 
       <section id="events-buttons-clutterclickaction">
-        <title><type>ClutterClickAction</type></title>
+        <title><type>ClickAction</type>s</title>
 
-        <para><type>ClutterActions</type> add flexible event handling
-        to <type>ClutterActors</type>. They recognise and abstract
+        <para><type>Action</type>s add flexible event handling
+        to <type>Actor</type>s. They recognise and abstract
         common sequences of low-level events into a single, more easily
         managed high-level event. In the case of a
-        <type>ClutterClickAction</type>, the abstraction is over
+        <type>ClickAction</type>, the abstraction is over
         a press followed by a release on a single actor. This is
         achieved by "synthesising" the press and release signals on
         the actor: in other words, the action captures those
@@ -1322,21 +1179,21 @@ g_object_set (settings,
         <para>If a press occurs and you want to force it to be released
         (e.g. to break a pointer grab after a certain length of
         time has elapsed), use
-        <function>clutter_click_action_release()</function>.</para>
+        <function>ClickAction.release()</function>.</para>
 
         <para>On the down side, the <emphasis>clicked</emphasis> signal
-        doesn't present the same detailed <type>ClutterButtonEvent</type>
+        doesn't present the same detailed <type>ButtonEvent</type>
         to the handler. So, for example, you can't get a click count from a
-        <type>ClutterClickAction</type> (though you could count
+        <type>ClickAction</type> (though you could count
         the clicks yourself, of course); and you don't have access
         to the coordinates where the press or release occurred.</para>
 
-        <para>To add a click action to a <type>ClutterActor</type>:</para>
+        <para>To add a click action to a <type>Actor</type>:</para>
 
         <informalexample>
           <programlisting>
-ClutterAction *action = clutter_click_action_new ();
-clutter_actor_add_action (actor, action);
+var action = new ClickAction();
+actor.add_action(action);
           </programlisting>
         </informalexample>
 
@@ -1347,19 +1204,15 @@ clutter_actor_add_action (actor, action);
 
         <para>Create a handler function (note the function
         signature is different from the one for the press or
-        releas signal handler):</para>
+        release signal handler):</para>
 
         <informalexample>
           <programlisting>
 void
-clicked_cb (ClutterClickAction *action,
-            ClutterActor       *actor,
-            gpointer            user_data)
+clicked_cb (ClickAction action, Actor actor)
 {
-  /* display the number of the clicked button (equivalent
-   * to the number returned by clutter_event_get_button())
-   */
-  g_debug ("Button %d clicked", clutter_click_action_get_button (action));
+  // display the number of the clicked button
+  stderr.printf("Button %d clicked", action.get_button());
 }
           </programlisting>
         </informalexample>
@@ -1368,10 +1221,7 @@ clicked_cb (ClutterClickAction *action,
 
         <informalexample>
           <programlisting>
-g_signal_connect (action,
-                  "clicked",
-                  G_CALLBACK (clicked_cb),
-                  NULL);
+action.clicked.connect(clicked_cb);
           </programlisting>
         </informalexample>
 
@@ -1387,19 +1237,19 @@ g_signal_connect (action,
       <title>Full examples</title>
 
       <example id="events-buttons-example-1">
-        <title>Examining properties of a <type>ClutterButtonEvent</type></title>
+        <title>Examining properties of a <type>ButtonEvent</type></title>
         <programlisting>
-<xi:include href="examples/events-buttons.c" parse="text">
+<xi:include href="examples/events-buttons.vala" parse="text">
   <xi:fallback>a code sample should be here... but isn't</xi:fallback>
 </xi:include>
         </programlisting>
       </example>
 
       <example id="events-buttons-example-2">
-        <title>Using <type>ClutterClickAction</type> to capture
+        <title>Using <type>ClickAction</type> to capture
         button events on an actor</title>
         <programlisting>
-<xi:include href="examples/events-buttons-click.c" parse="text">
+<xi:include href="examples/events-buttons-click.vala" parse="text">
   <xi:fallback>a code sample should be here... but isn't</xi:fallback>
 </xi:include>
         </programlisting>
@@ -1411,7 +1261,7 @@ g_signal_connect (action,
         <ulink url="http://git.clutter-project.org/cluttersmith/">ClutterSmith</ulink>
         </para>
         <programlisting>
-<xi:include href="examples/events-buttons-lasso.c" parse="text">
+<xi:include href="examples/events-buttons-lasso.vala" parse="text">
   <xi:fallback>a code sample should be here... but isn't</xi:fallback>
 </xi:include>
         </programlisting>
