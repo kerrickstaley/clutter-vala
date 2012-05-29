@@ -19,11 +19,11 @@
     to show the picture of a kitten, a big part of any Clutter-based
     application is going to involve textures.</para>
 
-    <para>A ClutterTexture is an actor that can hold any raw image data and
-    paint it. ClutterTexture can also load image data from a file on disk and
+    <para>A Texture is an actor that can hold any raw image data and
+    paint it. The Texture class can also load image data from a file on disk and
     convert it.</para>
 
-    <note><para>The actual formats supported by ClutterTexture depend on the
+    <note><para>The actual formats supported by Texture depend on the
     platform on which Clutter is being used.</para></note>
   </section>
 
@@ -39,47 +39,45 @@
     <section>
       <title>Solution</title>
 
-      <para>Create a <type>ClutterCairoTexture</type>, then draw onto
-      the Cairo context it wraps using the Cairo API:</para>
+      <para>Create a <type>CairoTexture</type>, and connect
+      a callback to its <varname>draw</varname> signal.
+      Within the callback, draw onto the Cairo context using
+      the Cairo API:</para>
 
       <informalexample>
         <programlisting>
-ClutterActor *texture;
-cairo_t *cr;
+int width = 800;
+int height = 600;
+var texture = new CairoTexture(width, height);
 
-guint width, height;
-width = 800;
-height = 600;
+texture.draw.connect((actor, context) =>
+{
+  /*
+   * write onto the Cairo context cr using the Cairo API;
+   * see <ulink url="http://cairographics.org/manual/">the Cairo API reference</ulink> for details
+   */
+  context.move_to(0, 0);
+  context.line_to(800, 600);
+  context.stroke();
+});
 
-texture = clutter_cairo_texture_new (width, height);
-
-cr = clutter_cairo_texture_create (CLUTTER_CAIRO_TEXTURE (texture));
-
-/*
- * write onto the Cairo context cr using the Cairo API;
- * see <ulink url="http://cairographics.org/manual/">the Cairo API reference</ulink> for details
- */
-cairo_move_to (cr, 0, 0);
-cairo_line_to (cr, 800, 600);
-cairo_stroke (cr);
-
-/* does the actual drawing onto the texture */
-cairo_destroy (cr);
+texture.invalidate();
         </programlisting>
       </informalexample>
 
       <para>Here's a <ulink url="http://cairographics.org/tutorial/">useful
       Cairo tutorial</ulink> if you want to learn more about the Cairo API
-      itself.</para>
+      itself; documentation for Vala can be found at
+      <ulink url="http://valadoc.org/#!api=cairo/Cairo.Context">Valadoc</ulink></para>
     </section>
 
     <section>
       <title>Discussion</title>
 
-      <para>A <type>ClutterCairoTexture</type> is a standard
-      <type>ClutterActor</type>, so it can be added to a
-      <type>ClutterContainer</type> (e.g. a <type>ClutterStage</type>
-      or <type>ClutterGroup</type>), animated, resized etc. in the
+      <para>A <type>CairoTexture</type> is a standard
+      <type>Actor</type>, so it can be added to a
+      <type>Container</type> (e.g. a <type>Stage</type>
+      or <type>Group</type>), animated, resized etc. in the
       usual ways.</para>
 
       <para>Other useful operations:</para>
@@ -88,81 +86,62 @@ cairo_destroy (cr);
 
         <listitem>
           <para><emphasis>To draw on part of the texture:</emphasis>
-          use <function>clutter_cairo_texture_create_region()</function> to
-          retrieve a Cairo context for the region you want to draw on.</para>
+          use <function>CairoTexture.invalidate_rectangle()</function>;
+          the <varname>draw</varname> signal will then be passed a
+          Cairo.Context that is clipped (i.e. when the context is drawn
+          to, the updates will only affect the clip region).</para>
         </listitem>
 
         <listitem>
           <para><emphasis>To clear existing content from a texture:</emphasis>
-          use <function>clutter_cairo_texture_clear()</function>.</para>
+          use <function>CairoTexture.clear()</function>.</para>
 
-          <para>You may need to do this as the texture reuses the same
-          Cairo context each time you call
-          <function>clutter_cairo_texture_create()</function> or
-          <function>clutter_cairo_texture_create_region()</function>.</para>
+          <para>You may want to call this function at the beginning of
+          the <varname>draw</varname> signal; otherwise, the content you
+          add to the surface will be drawn on top of the existing content.</para>
         </listitem>
 
         <listitem>
           <para><emphasis>To resize the Cairo context wrapped
-          by a texture</emphasis>, use
-          <function>clutter_cairo_texture_set_surface_size()</function>.</para>
+          by a texture</emphasis>, change the<varname>surface_height</varname>
+          and <varname>surface_width</varname> properties.</para>
         </listitem>
 
       </itemizedlist>
 
       <section>
-        <title>Drawing pages from a PDF onto a ClutterCairoContext</title>
+        <title>Drawing pages from a PDF onto a CairoContext</title>
 
         <para>Other libraries may provide an API for writing onto a
-        Cairo context; you can make use of these APIs on the exposed
-        Cairo context of a ClutterCairoTexture. For example, you
+        Cairo context; you can make use of these APIs on the
+        Cairo.Context that is passed to the draw signal. For example, you
         can use the poppler-glib API to display pages
-        from a PopplerDocument inside a Clutter application:</para>
+        from a Poppler.Document inside a Clutter application:</para>
 
         <informalexample>
           <programlisting>
 <![CDATA[
-#include <poppler/glib/poppler.h>
+texture.draw.connect((texture, context) =>
+{
+  texture.clear();
+  
+  string file_uri = "file://path/to/file.pdf";
 
-/* snipped setup code (as above) */
-
-/*
- * cast to CLUTTER_CAIRO_TEXTURE, as the functions
- * used below require that type
- */
-ClutterCairoTexture *cc_texture = CLUTTER_CAIRO_TEXTURE (texture);
-
-clutter_cairo_texture_clear (cc_texture);
-
-gchar *file_uri = "file:///path/to/file.pdf";
-guint page_num = 0;
-double page_width, page_height;
-
-PopplerDocument *doc;
-PopplerPage *page;
-GError *error = NULL;
-
-doc = poppler_document_new_from_file (file_uri, NULL, &error);
-
-page = poppler_document_get_page (doc, page_num);
-
-poppler_page_get_size (page, &page_width, &page_height);
-
-cr = clutter_cairo_texture_create (cc_texture);
-
-/* render the page to the context */
-poppler_page_render (page, cr);
-
-cairo_destroy (cr);
+  var doc = new Poppler.Document.from_file(file_uri, null);
+  var page = doc.get_page(0);
+  
+  // render the page to the context
+  page.render(context);
+});
 ]]>
           </programlisting>
         </informalexample>
 
         <note><para>If the page is larger than the Cairo context,
         some of it might not be visible. Similarly, if the
-        <type>ClutterCairoTexture</type> is larger than the stage,
+        <type>CairoTexture</type> is larger than the stage,
         some of that might not be visible. So you
-        may need to do some work to make the <type>ClutterCairoTexture</type>
+        may need to do some work to make the <type>CairoTexture</type>
         fit inside the stage properly (e.g. resize the stage), and/or some work
         to make the PDF page sit inside the Cairo context (e.g. scale the PDF
         page or put it inside a scrollable actor).</para></note>
@@ -200,23 +179,17 @@ cairo_destroy (cr);
       <informalexample>
         <programlisting>
 <![CDATA[
-ClutterActor *texture;
-texture = clutter_texture_new ();
-
-clutter_texture_set_keep_aspect_ratio (CLUTTER_TEXTURE (texture), TRUE);
-
-/*
- * this setting means the height of the scaled image is based on its width;
- * it's not strictly necessary to set this, as this is the default
- */
-clutter_actor_set_request_mode (texture, CLUTTER_REQUEST_HEIGHT_FOR_WIDTH);
-
-/* set the width, which causes height to be scaled by the same factor */
-clutter_actor_set_width (texture, 300);
-
-clutter_texture_set_from_file (CLUTTER_TEXTURE (texture),
-                               "/path/to/image.jpg",
-                               NULL);
+var texture = new Texture()
+{
+  keep_aspect_ratio = true,
+  /*
+   * the below setting means the height of the scaled image is based on its
+   * width; it's not strictly necessary to set this, as this is the default
+   */
+  request_mode = RequestMode.HEIGHT_FOR_WIDTH,
+  width = 300,
+  filename = "/path/to/image.jpg"
+};
 ]]>
         </programlisting>
       </informalexample>
@@ -225,7 +198,7 @@ clutter_texture_set_from_file (CLUTTER_TEXTURE (texture),
     <section>
       <title>Discussion</title>
 
-      <para>The <property>request-mode</property> for an actor
+      <para>The <property>request_mode</property> for an actor
       determines how geometry requisition is performed; in this case, this
       includes how scaling is applied if you change the actor's
       width or height. There are two possible values for
@@ -233,51 +206,46 @@ clutter_texture_set_from_file (CLUTTER_TEXTURE (texture),
 
       <orderedlist>
         <listitem>
-          <para>If set to <constant>CLUTTER_REQUEST_HEIGHT_FOR_WIDTH</constant>
+          <para>If set to <constant>RequestMode.HEIGHT_FOR_WIDTH</constant>
           (the default), changing the width causes the height
           to be scaled by the same factor as the width.</para>
         </listitem>
         <listitem>
-          <para>If set to <constant>CLUTTER_REQUEST_WIDTH_FOR_HEIGHT</constant>,
+          <para>If set to <constant>RequestMode.WIDTH_FOR_HEIGHT</constant>,
           changing the height causes the width to be scaled by the
           same factor as the height.</para>
         </listitem>
       </orderedlist>
 
       <para>In the example above, the texture is set to keep its
-      aspect ratio then fixed to a width of 300 pixels; the
-      request-mode is set to <constant>CLUTTER_REQUEST_HEIGHT_FOR_WIDTH</constant>.
+      aspect ratio and fixed to a width of 300 pixels; the
+      request-mode is set to <constant>RequestMode.HEIGHT_FOR_WIDTH</constant>.
       If a standard, photo-sized image in landscape orientation were
       loaded into it (2848 pixels wide x 2136 high), it would be scaled
       down to 300 pixels wide; then, its height would be scaled by the
       same factor as the width (i.e. scaled down to 225 pixels).</para>
 
       <para>With request-mode set to
-      <constant>CLUTTER_REQUEST_WIDTH_FOR_HEIGHT</constant>,
+      <constant>RequestMode.WIDTH_FOR_HEIGHT</constant>,
       you would get the same effect by setting the height first;
       then, computation of the width for the scaled image would be
       based on the scaling factor applied to its height instead.</para>
 
       <para>You can work out which side of the source image is longest using
-      <function>clutter_texture_base_size()</function> to get its
+      <function>Texture.get_base_size()</function> to get its
       width and height. This can be useful when trying to scale images
       with different orientations to fit into uniform rows or columns:</para>
 
       <informalexample>
         <programlisting>
 <![CDATA[
-gint width;
-gint height;
-
-clutter_texture_get_base_size (CLUTTER_TEXTURE (texture), &width, &height);
+int width, height;
+texture.get_base_size(out width, out height);
 ]]>
         </programlisting>
       </informalexample>
 
-      <note><para>If you explicitly set the size (both width and height)
-      of a texture with <function>clutter_actor_set_size()</function> (or
-      with <function>clutter_actor_set_width()</function> and
-      <function>clutter_actor_set_height()</function>), any
+      <note><para>If you explicitly set the size (both width and height), any
       image loaded into the texture is automatically stretched/shrunk to
       fit the texture. This is the case regardless of any other settings
       (like whether to keep aspect ratio).</para></note>
@@ -302,51 +270,25 @@ clutter_texture_get_base_size (CLUTTER_TEXTURE (texture), &width, &height);
     <section>
       <title>Solution</title>
 
-      <para>Create a <type>ClutterTexture</type> directly from an
+      <para>Create a <type>Texture</type> directly from an
       image file:</para>
 
       <informalexample>
         <programlisting>
 <![CDATA[
-ClutterActor *texture;
-GError *error = NULL;
-gchar *image_path = "/path/to/image";
-
-texture = clutter_texture_new_from_file (image_path, &error);
-
-if (error != NULL)
-  {
-    // handle error
-  }
+var texture = new Texture.from_file("/path/to/image");
 ]]>
         </programlisting>
       </informalexample>
 
-      <para>Or create a texture and set its source to an image
-      file:</para>
+      <para>You can also do this by setting the <varname>filename</varname>
+      property:</para>
 
       <informalexample>
         <programlisting>
 <![CDATA[
-ClutterActor *texture;
-GError *error = NULL;
-gchar *image_path = "/path/to/image";
-gboolean loaded;
-
-texture = clutter_texture_new ();
-
-/*
- * returns FALSE if file could not be loaded or texture
- * could not be set from image data in the file
- */
-loaded = clutter_texture_set_from_file (CLUTTER_TEXTURE (texture),
-                                        image_path,
-                                        &error);
-
-if (error != NULL)
-  {
-    // handle error
-  }
+var texture = new Texture();
+texture.filename = "/path/to/image";
 ]]>
         </programlisting>
       </informalexample>
@@ -361,7 +303,13 @@ if (error != NULL)
 
       <itemizedlist>
         <listitem>
-          <para>An image load may fail if:
+          <para>Image loads may fail. To detect a failed load, check whether
+          <function>Texture.from_file()</function> throws a TextureError.
+          If setting <varname>filename</varname>, you can connect to the
+          <varname>load_finished</varname> signal and examine the
+          <type>Error</type> that is passed to it; the <type>Error</type>
+          will be null if the image was loaded successfully. A load may
+          fail if:
             <itemizedlist>
               <listitem>
                 <para>The file does not exist.</para>
@@ -396,18 +344,13 @@ if (error != NULL)
 
         <itemizedlist>
           <listitem>
-            <para>Call <function>g_thread_init()</function> (from the
-            GLib library) prior to calling <function>clutter_init()</function>,
-            so that a local thread is used to load the file, rather
-            than the main loop. (Note that this is not necessary if
-            you're using GLib version >= 2.24, since GObject
-            initializes threading with the type system.)</para>
+            <para>Compile your code using valac's --thread flag.</para>
           </listitem>
           <listitem>
             <para>Set the texture to load data asynchronously.</para>
           </listitem>
           <listitem>
-            <para>Connect a callback to the texture's load-finished
+            <para>Connect a callback to the texture's load_finished
             signal to handle any errors which occur during loading,
             and/or to do extra work if data loads successfully.</para>
           </listitem>
@@ -418,54 +361,34 @@ if (error != NULL)
         <informalexample>
           <programlisting>
 <![CDATA[
-/* callback to invoke when a texture finishes loading image data */
-static void
-_load_finished_cb (ClutterTexture *texture,
-                 gpointer        error,
-                 gpointer        user_data)
-{
-  GError *err = error;
-  const gchar *image_path = user_data;
-
-  if (err != NULL)
-    g_warning ("Could not load image from file %s; message: %s",
-               image_path,
-               err->message);
-  else
-    g_debug ("Image loaded from %s", image_path);
-}
-
 int
-main (int argc, char *argv[])
+main(string[] args)
 {
-  /* initialize GLib's default threading implementation */
-  g_thread_init (NULL);
-
-  if (clutter_init (&argc, &argv) != CLUTTER_INIT_SUCCESS)
+  if (Clutter.init(ref args) != InitError.SUCCESS)
     return 1;
 
   /* ... get stage etc. */
 
-  ClutterActor *texture;
-  GError *error = NULL;
-
-  texture = clutter_texture_new ();
-
-  /* load data asynchronously */
-  clutter_texture_set_load_async (CLUTTER_TEXTURE (texture), TRUE);
-
-  /* connect a callback to the "load-finished" signal */
-  g_signal_connect (texture,
-                    "load-finished",
-                     G_CALLBACK (_load_finished_cb),
-                    image_path);
+  var image_path = "/path/to/image";
+  
+  var texture = new Texture()
+  {
+    load_async = true
+  };
+  texture.load_finished.connect((texture, error) =>
+  {
+    if (error != null)
+      warning("Could not load image from file %s; message: %s",
+              image_path,
+              error.message);
+    else
+      debug("Image loaded from %s", image_path);
+  });
 
   /* load the image from a file */
-  clutter_texture_set_from_file (CLUTTER_TEXTURE (texture),
-                                 image_path,
-                                 &error);
-
-  /* ... clutter_main () etc. */
+  texture.set_from_file(image_path);
+  
+  /* ... Clutter.main() etc. */
 }
 ]]>
           </programlisting>
@@ -483,17 +406,17 @@ main (int argc, char *argv[])
         <itemizedlist>
           <listitem>
             <para>Various GNOME libraries provide image data in
-            <type>GdkPixbuf</type> structures; clutter-gtk has
+            <type>Gdk.Pixbuf</type> structures; GtkClutter has
             functions for creating or setting a texture from a
-            <type>GdkPixbuf</type>:
-            <function>gtk_clutter_texture_new_from_pixbuf()</function>
-            and <function>gtk_clutter_texture_set_from_pixbuf()</function>
+            <type>Gdk.Pixbuf</type>:
+            the constructor <function>GtkClutter.Texture.from_pixbuf()</function>
+            and the method <function>GtkClutter.Texture.set_from_pixbuf()</function>
             respectively.</para>
           </listitem>
           <listitem>
-            <para>If you have raw RGB pixel data, <type>ClutterTexture</type>
-            also has a <function>clutter_texture_set_from_rgb_data()</function>
-            function for loading it.</para>
+            <para>If you have raw RGB pixel data, <type>Texture</type>
+            also has a <function>set_from_rgb_data()</function>
+            method for loading it.</para>
           </listitem>
         </itemizedlist>
 
@@ -504,11 +427,13 @@ main (int argc, char *argv[])
 
   <section id="textures-sub-textures">
     <title>Creating sub-textures from an existing texture</title>
+    <warning>This entire section is currently broken in Vala, because
+    Cogl.Texture.from_sub_texture() is not properly introspected</warning>
 
     <section>
       <title>Problem</title>
 
-      <para>You want to create a new <type>ClutterTexture</type> that only
+      <para>You want to create a new <type>Texture</type> that only
       displays a rectangular sub-region of an existing texture.</para>
     </section>
 
@@ -516,42 +441,32 @@ main (int argc, char *argv[])
       <title>Solution</title>
 
       <para>A possible way of achieving this is to retrieve the
-      <type>CoglHandle</type> of the underlying Cogl texture of the existing
-      <type>ClutterTexture</type>, create a new handle representing the
-      sub-region with <function>cogl_texture_new_from_sub_texture()</function>
-      and finally populate a new <type>ClutterTexture</type> with that handle.
+      <type>Cogl.Handle</type> of the underlying Cogl texture of the existing
+      <type>Texture</type>, create a new handle representing the sub-region
+      with the <function>Cogl.Texture.from_sub_texture()</function> constructor,
+      and finally populate a new <type>Texture</type> with that handle.
       </para>
 
       <informalexample>
         <programlisting>
 <![CDATA[
 /* Create a new ClutterTexture that shows smiley.png */
-image = clutter_texture_new_from_file ("smiley.png", NULL);
-clutter_actor_get_size (image, &image_width, &image_height);
-
-/* Grab the CoglHandle of the underlying Cogl texture */
-texture = clutter_texture_get_cogl_texture (CLUTTER_TEXTURE (image));
+var image = new Texture.from_file("smiley.png");
 
 /* Create a new Cogl texture from the handle above. That new texture is a
  * rectangular region from image, more precisely the northwest corner
  * of the image */
-sub_texture = cogl_texture_new_from_sub_texture (texture,
-                                                 0, 0,
-                                                 image_width / 2,
-                                                 image_height / 2);
+var sub_texture = new Cogl.Texture.from_sub_texture(image.texture,
+                                                    0, 0,
+                                                    image.width / 2,
+                                                    image.height / 2);
 
-/* Finally, use the newly created Cogl texture to feed a new ClutterTexture
+/* Finally, use the newly created Cogl texture to feed a new Texture
  * and thus create a new actor that displays sub_texture */
- sub_image = clutter_texture_new ();
- clutter_texture_set_cogl_texture (CLUTTER_TEXTURE (sub_image), sub_texture);
-
-/*
- * You could have used the more straightforward g_object_new() function that
- * can create an object and set some properties on it at the same time:
- * sub_image = g_object_new (CLUTTER_TYPE_TEXTURE,
- *                           "cogl-texture", sub_texture,
- *                           NULL);
- */
+var sub_image = new Texture()
+{
+  cogl_texture = sub_texture
+};
 ]]>    </programlisting>
       </informalexample>
 
@@ -578,8 +493,8 @@ sub_texture = cogl_texture_new_from_sub_texture (texture,
 
       <para>From this handle, it's possible to create a new texture handle
       that represents a rectangular region of the former texture. To do this
-      one must call <function>cogl_texture_new_from_sub_texture()</function>
-      with the position and size of the said region. The interesting bit
+      one must call the <function>Cogl.Texture.from_sub_texture()</function>
+      constructor with the position and size of the said region. The interesting bit
       about this function is that, when drawing either with the original
       texture or with the new one, it's still the same GPU resource (pixels)
       being used, meaning that creating a sub-texture doesn't use extra GPU
@@ -587,13 +502,13 @@ sub_texture = cogl_texture_new_from_sub_texture (texture,
 
       <para>Once the sub-texture handle is created, the next step is
       to create a new actor that will be able to draw it, namely a new
-      <type>ClutterTexture</type>. You then need to tell the texture to
+      <type>Texture</type>. You then need to tell the texture to
       draw from the sub-texture.</para>
 
-      <note><para>The handle you can get from
-      <function>clutter_texture_get_cogl_texture()</function> is effectively
-      the same texture than the first layer of the material retrieved by
-      <function>clutter_texture_get_cogl_material()</function></para></note>
+      <note><para>The handle 
+      <varname>Texture.cogl_texture</varname> is effectively
+      the same texture as the first layer of the material
+      <function>Texture.cogl_material</function></para></note>
 
     </section>
 
@@ -602,8 +517,8 @@ sub_texture = cogl_texture_new_from_sub_texture (texture,
 
       <example id="textures-sub-texture">
         <title>Creating a sub-texture from an existing texture</title>
-        <programlisting
-          ><xi:include href="examples/textures-sub-texture.c" parse="text">
+        <programlisting>
+          <xi:include href="examples/textures-sub-texture.vala" parse="text">
             <xi:fallback>FIXME: MISSING XINCLUDE CONTENT</xi:fallback>
           </xi:include></programlisting>
       </example>
@@ -654,89 +569,93 @@ sub_texture = cogl_texture_new_from_sub_texture (texture,
     <section>
       <title>Solution</title>
 
-      <para>You can use a ClutterClone actor and override its paint
+      <para>You can use a Clone actor and override its paint
       implementation with a custom one:</para>
 
       <informalexample>
         <programlisting>
 <![CDATA[
-static void
-_clone_paint_cb (ClutterActor *actor)
+void
+clone_paint_cb (Clone clone)
 {
   /* ... */
 
-  /* get the Cogl material of the source texture */
-  material = clutter_texture_get_cogl_material (CLUTTER_TEXTURE (source));
-
-  /* get the size of the actor, which will be used to size the reflection */
-  clutter_actor_get_allocation_box (actor, &box);
-  clutter_actor_box_get_size (&box, &width, &height);
-
-  /* get the composite opacity of the actor */
-  opacity = clutter_actor_get_paint_opacity (actor);
+  /* get the allocation box of the actor, whose size will be used to
+   * size the reflection */
+  var box = clone.get_allocation_box();
 
   /* figure out the two colors for the reflection: the first is
    * full color and the second is the same, but at 0 opacity
    */
-  cogl_color_init_from_4f (&color_1, 1.0, 1.0, 1.0, opacity / 255.);
-  cogl_color_premultiply (&color_1);
-  cogl_color_init_from_4f (&color_2, 1.0, 1.0, 1.0, 0.0);
-  cogl_color_premultiply (&color_2);
+  var color_1 = Cogl.Color.from_4f(1, 1, 1, clone.opacity / 255f);
+  color_1.premultiply();
+  var color_2 = Cogl.Color.from_4f(1, 1, 1, 0);
+  color_2.premultiply();
 
   /* describe the four vertices of the quad; since it has
    * to be a reflection, we need to invert it as well
    */
-  vertices[0].x = 0; vertices[0].y = 0; vertices[0].z = 0;
-  vertices[0].tx = 0.0; vertices[0].ty = 1.0;
-  vertices[0].color = color_1;
-
-  vertices[1].x = width; vertices[1].y = 0; vertices[1].z = 0;
-  vertices[1].tx = 1.0; vertices[1].ty = 1.0;
-  vertices[1].color = color_1;
-
-  vertices[2].x = width; vertices[2].y = height; vertices[2].z = 0;
-  vertices[2].tx = 1.0; vertices[2].ty = 0.0;
-  vertices[2].color = color_2;
-
-  vertices[3].x = 0; vertices[3].y = height; vertices[3].z = 0;
-  vertices[3].tx = 0.0; vertices[3].ty = 0.0;
-  vertices[3].color = color_2;
-
+  Cogl.TextureVertices[] vertices = new Cogl.TextureVertices[4];
+  vertices[0] = TextureVertices()
+  {
+    x = 0,
+    y = 0,
+    z = 0,
+    tx = 0,
+    ty = 1,
+    color = color_1
+  };
+  
+  vertices[1] = TextureVertices()
+  {
+    x = box.width,
+    y = 0,
+    z = 0,
+    tx = 1,
+    ty = 1,
+    color = color_1
+  };
+  
+  vertices[2] = TextureVertices()
+  {
+    x = box.width,
+    y = box.height,
+    z = 0,
+    tx = 1,
+    ty = 0,
+    color = color_2
+  };
+  
+  vertices[3] = TextureVertices()
+  {
+    x = 0,
+    y = box.height,
+    z = 0,
+    tx = 0,
+    ty = 0,
+    color = color_2
+  };
+  
   /* paint the same texture but with a different geometry */
-  cogl_set_source (material);
-  cogl_polygon (vertices, 4, TRUE);
-
-  /* ... */
+  Cogl.set_source(actor.cogl_material);
+  Cogl.polygon(vertices, true);
 }
 
 int
-main (int argc, char *argv[])
+main (string[] args)
 {
-  if (clutter_init (&argc, &argv) != CLUTTER_INIT_SUCCESS)
+  if (Clutter.init(ref args) != InitError.SUCCESS)
     return 1;
 
   /* ... get stage etc. */
 
-  ClutterActor *texture;
-  GError *error = NULL;
+  var texture = new Texture.from_file(image_path);
+  
+  var clone = new Clone(texture);
+  
+  clone.paint.connect(clone_paint_cb);
 
-  texture = clutter_texture_new ();
-
-  /* load the image from a file */
-  clutter_texture_set_from_file (CLUTTER_TEXTURE (texture),
-                                 image_path,
-                                 &error);
-
-  ClutterActor *clone;
-
-  clone = clutter_clone_new (texture);
-
-  g_signal_connect (clone,
-                    "paint",
-                    G_CALLBACK (_clone_paint_cb),
-                    NULL);
-
-  /* ... clutter_main () etc. */
+  /* ... Clutter.main() etc. */
 }
 ]]>
         </programlisting>
@@ -764,24 +683,24 @@ main (int argc, char *argv[])
       always an up to date version of the original, but it also saves
       resources.</para>
 
-      <para>In the code example above we take the <type>CoglMaterial</type>
-      out of the source <type>ClutterTexture</type> and we ask the Cogl
-      pipeline to paint it by using <function>cogl_set_source()</function>. The
+      <para>In the code example above we take the <type>Cogl.Material</type>
+      out of the source <type>Texture</type> and we ask the Cogl
+      pipeline to paint it by using <function>Cogl.set_source()</function>. The
       main difference between this code and the equivalent code inside the
-      <type>ClutterTexture</type> <function>paint()</function> implementation
+      <type>Texture</type> <function>paint()</function> implementation
       is that we also specify the texture vertices and their color by using the
-      <type>CoglTextureVertex</type> structure and the
-      <function>cogl_polygon()</function> function.</para>
+      <type>Cogl.TextureVertex</type> structure and the
+      <function>Cogl.polygon()</function> function.</para>
 
-      <para>The <type>CoglTextureVertex</type> structure contains three fields
+      <para>The <type>Cogl.TextureVertex</type> structure contains three fields
       for the position of the vertex in 3D space:</para>
 
       <informalexample>
         <programlisting><![CDATA[
-typedef struct _CoglTextureVertex {
-  float x;
-  float y;
-  float z;
+struct TextureVertex {
+  public float x;
+  public float y;
+  public float z;
   ...
         ]]></programlisting>
       </informalexample>
@@ -792,20 +711,20 @@ typedef struct _CoglTextureVertex {
       <informalexample>
         <programlisting><![CDATA[
   ...
-  float tx;
-  float ty;
+  public float tx;
+  public float ty;
   ...
         ]]></programlisting>
       </informalexample>
 
       <para>And, finally, the color of the vertex, expressed as a
-      <type>CoglColor</type>:</para>
+      <type>Cogl.Color</type>:</para>
 
 <informalexample>
   <programlisting><![CDATA[
   ...
-  CoglColor color;
-} CoglTextureVertex;
+  public Cogl.Color color;
+}
   ]]></programlisting>
 </informalexample>
 
@@ -821,9 +740,9 @@ typedef struct _CoglTextureVertex {
     gradient that will be applied when painting the material.</para>
 
     <note><para>The color values must be pre-multiplied with their alpha
-    component, otherwise the bleding will not be correct. You can either
+    component, otherwise the blending will not be correct. You can either
     multiply the values by yourself when creating the color or, better yet,
-    use the <function>cogl_color_premultiply()</function> that Cogl provides
+    use the <function>Cogl.Color.premultiply()</function> that Cogl provides
     for this operation.</para></note>
 
     </section>
@@ -834,7 +753,7 @@ typedef struct _CoglTextureVertex {
       <example id="textures-reflection-example">
         <title>Creating a glassy reflection of a texture</title>
         <programlisting>
-          <xi:include href="examples/textures-reflection.c" parse="text">
+          <xi:include href="examples/textures-reflection.vala" parse="text">
             <xi:fallback>FIXME: MISSING XINCLUDE CONTENT</xi:fallback>
           </xi:include>
         </programlisting>
@@ -864,11 +783,11 @@ typedef struct _CoglTextureVertex {
 
       <orderedlist>
         <listitem>
-          <para>Use two <type>ClutterTextures</type>, one on top
+          <para>Use two <type>Texture</type>s, one on top
           of the other.</para>
         </listitem>
         <listitem>
-          <para>Use a single <type>ClutterTexture</type>
+          <para>Use a single <type>Texture</type>
           with the two images in separate layers inside it.</para>
         </listitem>
       </orderedlist>
@@ -876,7 +795,7 @@ typedef struct _CoglTextureVertex {
       <section>
         <title>Solution 1: two textures</title>
 
-        <para>This approach uses two <type>ClutterTextures</type>,
+        <para>This approach uses two <type>Texture</type>s,
         <varname>bottom</varname> and <varname>top</varname>. To begin
         with, the <varname>bottom</varname> texture shows the
         <emphasis>source</emphasis> image and is opaque; the
@@ -890,7 +809,7 @@ typedef struct _CoglTextureVertex {
         visible.</para>
 
         <para>To implement this, first create the two textures inside a
-        <type>ClutterBinLayout</type>:</para>
+        <type>BinLayout</type>:</para>
 
         <informalexample>
           <programlisting>
@@ -898,26 +817,26 @@ typedef struct _CoglTextureVertex {
 /* ... initialise Clutter, get default stage etc. ... */
 
 /* Actors added to this layout are centered on both x and y axes */
-ClutterLayoutManager *layout = clutter_bin_layout_new (CLUTTER_BIN_ALIGNMENT_CENTER,
-                                                       CLUTTER_BIN_ALIGNMENT_CENTER);
+var layout = new BinLayout(BinAlignment.CENTER, BinAlignment.CENTER);
 
-ClutterActor *box = clutter_box_new (layout);
+var box = new Box(layout)
+{
+  width = 400,
+  height = 400
+};
 
-/* set the size of the box so it fills the stage (in this case 600x600) */
-clutter_actor_set_size (box, 400, 400);
-
-ClutterActor *bottom = clutter_texture_new ();
-ClutterActor *top = clutter_texture_new ();
+var bottom = new Texture();
+var top = new Texture();
 
 /*
  * Add the textures to the layout;
  * NB because top is added last, it will be "on top of" bottom
  */
-clutter_container_add_actor (CLUTTER_CONTAINER (box), bottom);
-clutter_container_add_actor (CLUTTER_CONTAINER (box), top);
+box.add_actor(bottom);
+box.add_actor(top);
 
 /* stage is a ClutterStage instance */
-clutter_container_add_actor (CLUTTER_CONTAINER (stage), box);
+container.add_actor(box);
 ]]>
           </programlisting>
         </informalexample>
@@ -931,24 +850,18 @@ clutter_container_add_actor (CLUTTER_CONTAINER (stage), box);
         <informalexample>
           <programlisting>
 <![CDATA[
-static gboolean
-load_image (ClutterTexture *texture,
-            gchar          *image_path)
+void
+load_image(Texture texture, string image_path)
 {
-  GError *error = NULL;
-
-  gboolean success = clutter_texture_set_from_file (CLUTTER_TEXTURE (texture),
-                                                    image_path,
-                                                    &error);
-
-  if (error != NULL)
-    {
-      g_warning ("Error loading %s\n%s", image_path, error->message);
-      g_error_free (error);
-      exit (EXIT_FAILURE);
-    }
-
-  return success;
+  try
+  {
+    texture.set_from_file(texture, image_path);
+  }
+  catch (TextureError e)
+  {
+    error("Error loading s\n%s", image_path, e.message);
+    Process.exit(1);
+  }
 }
 ]]>
           </programlisting>
@@ -961,59 +874,67 @@ load_image (ClutterTexture *texture,
           <programlisting>
 <![CDATA[
 /* file path to the image visible when the UI is first displayed */
-gchar *source = NULL;
+string source;
 
 /* file path to the image we're going to cross-fade to */
-gchar *target = NULL;
+source target;
 
 /* ...set image file paths, e.g. from command line or directory read... */
 
 /* the bottom texture contains the source image */
-load_image (CLUTTER_TEXTURE (bottom), source);
+load_image(bottom, source);
 
 /* the top texture contains the target image */
-load_image (CLUTTER_TEXTURE (top), target);
+load_image(top, target);
 ]]>
           </programlisting>
         </informalexample>
 
-        <para>For the animations, we use <type>ClutterState</type> as we
+        <para>For the animations, we use <type>State</type> as we
         want to animate two actors at once (<varname>top</varname>
         and <varname>bottom</varname>):</para>
 
         <informalexample>
           <programlisting>
 <![CDATA[
-ClutterState *transitions = clutter_state_new ();
+var transitions = new State()
+{
+  /* set 1000ms duration for all transitions between states */
+  duration = 1000
+};
 
 /* start state, where bottom is opaque and top is transparent */
-clutter_state_set (transitions, NULL, "show-bottom",
-                   top, "opacity", CLUTTER_LINEAR, 0,
-                   bottom, "opacity", CLUTTER_LINEAR, 255,
-                   NULL);
+transitions.set_key(null, "show-bottom",
+                    top, "opacity",
+                    AnimationMode.EASE_IN_CUBIC, 0u,
+                    0, 0);
+transitions.set_key(null, "show-bottom",
+                    bottom, "opacity",
+                    AnimationMode.EASE_IN_CUBIC, 255u,
+                    0, 0);
 
 /* end state, where top is opaque and bottom is transparent */
-clutter_state_set (transitions, NULL, "show-top",
-                   top, "opacity", CLUTTER_EASE_IN_CUBIC, 255,
-                   bottom, "opacity", CLUTTER_EASE_IN_CUBIC, 0,
-                   NULL);
-
-/* set 1000ms duration for all transitions between states */
-clutter_state_set_duration (transitions, NULL, NULL, 1000);
+transitions.set_key(null, "show-top",
+                    top, "opacity",
+                    AnimationMode.EASE_IN_CUBIC, 255u,
+                    0, 0);
+transitions.set_key(null, "show-bottom",
+                    bottom, "opacity",
+                    AnimationMode.EASE_IN_CUBIC, 0u,
+                    0, 0);
 ]]>
           </programlisting>
         </informalexample>
 
         <para>Note that rather than set the start opacities manually
-        on the actors (e.g. using
-        <function>clutter_actor_set_opacity()</function>),
-        I've used a <type>ClutterState</type> to define the start
+        on the actors,
+        I've used a <type>State</type> to define the start
         state (as well as the end state). This makes it easier to
         track transitions, as they are all kept in one data structure.</para>
 
         <note>
           <para>The easing modes used for the cross-fade animation
-          (<constant>CLUTTER_EASE_IN_CUBIC</constant>)
+          (<constant>AnimationMode.EASE_IN_CUBIC</constant>)
           can be set to whatever you like. I personally think that
           ease-in modes look best for cross-fading.</para>
         </note>
@@ -1025,23 +946,23 @@ clutter_state_set_duration (transitions, NULL, NULL, 1000);
         <informalexample>
           <programlisting>
 <![CDATA[
-clutter_state_warp_to_state (transitions, "show-bottom");
+transitions.warp_to_state("show-bottom");
 ]]>
           </programlisting>
         </informalexample>
 
-        <para>Using <function>clutter_state_warp_to_state()</function>
+        <para>Using <function>warp_to_state()</function>
         immediately transitions to a state without animating, which
         in this case sets up the initial state of the UI.</para>
 
-        <para>Finally, use the <type>ClutterState</type> to animate
+        <para>Finally, use the <type>State</type> to animate
         the two textures, so <varname>top</varname> fades in and
         <varname>bottom</varname> fades out:</para>
 
         <informalexample>
           <programlisting>
 <![CDATA[
-clutter_state_set_state (transitions, "show-top");
+transitions.state = "show-top";
 ]]>
           </programlisting>
         </informalexample>
@@ -1065,6 +986,8 @@ clutter_state_set_state (transitions, "show-top");
 
       <section>
         <title>Solution 2: one texture with two layers</title>
+        <note>The code example for this section has not been
+        properly converted to Vala.</note>
 
         <para>The alternative solution is to use a single texture
         and the low-level COGL API to set up two different layers
@@ -1168,8 +1091,8 @@ clutter_state_set_state (transitions, "show-top");
 
         <para>In the two texture example, this isn't so much of a problem,
         as you can resize the textures individually to the images:
-        providing you use
-        <function>clutter_texture_set_keep_aspect_ratio()</function>,
+        providing you set
+        <varname>Texture.keep_aspect_ratio</varname>,
         different image sizes shouldn't be a problem. See
         <link linkend="textures-crossfade-example-3">the slideshow
         example</link>, for a demonstration of how to cycle through
@@ -1180,7 +1103,7 @@ clutter_state_set_state (transitions, "show-top");
         different sizes. There is no easy way to maintain the aspect
         ratio (as you have two layers, potentially with different sizes,
         in the same texture). The last layer added to the
-        <type>CoglMaterial</type> determines the size of the texture;
+        <type>Cogl.Material</type> determines the size of the texture;
         so if the previous layer has different dimensions, it will
         appear distorted in the UI. In the
         <link linkend="textures-crossfade-example-2">single texture
@@ -1195,13 +1118,13 @@ clutter_state_set_state (transitions, "show-top");
 
           <listitem>
             <para>As you load each image into its own
-            <type>CoglTexture</type>, get its size with
-            <function>cogl_texture_get_width()</function> and
-            <function>cogl_texture_get_height()</function>. Then set the
-            <type>ClutterTexture's</type> size to the
+            <type>Cogl.Texture</type>, get its size from
+            <varname>Cogl.Texture.width</varname> and
+            <varname>Cogl.Texture.height</varname>. Then set the
+            <type>Texture</type>'s size to the
             size of the source layer. Next, as
             you cross-fade, simultaneously animate a
-            size change in the <type>ClutterTexture</type> to
+            size change in the <type>Texture</type> to
             the target image's size.</para>
             <para>This could work with non-realistic images where
             some distortion of the image is acceptable (the target image
@@ -1211,12 +1134,12 @@ clutter_state_set_state (transitions, "show-top");
           </listitem>
 
           <listitem>
-            <para>Use GdkPixbuf (or similar) to load the images into a temporary
-            data structure. (GdkPixbuf works well for this as it can resize
+            <para>Use Gdk.Pixbuf (or similar) to load the images into a temporary
+            data structure. (Gdk.Pixbuf works well for this as it can resize
             the image while retaining its aspect ratio.) Then load the data from
             the pixbuf into a <emphasis>region</emphasis> of a
-            <type>CoglTexture</type> which has the same dimensions as
-            the <type>ClutterTexture</type>.</para>
+            <type>Cogl.Texture</type> which has the same dimensions as
+            the <type>Clutter.Texture</type>.</para>
 
             <para>Here's an example of how you can rewrite the
             <function>load_cogl_texture()</function> function of
@@ -1226,17 +1149,9 @@ clutter_state_set_state (transitions, "show-top");
             <informalexample>
               <programlisting>
 <![CDATA[
-/* requires this extra include */
-#include <gdk-pixbuf/gdk-pixbuf.h>
-
-static CoglHandle
-load_cogl_texture (const char  *type,
-                   const char  *file,
-                   const guint texture_width,
-                   const guint texture_height)
+Cogl.Handle
+load_cogl_texture(string file, int texture_width, int texture_height)
 {
-  GError *error = NULL;
-
   /*
    * Load image data from a file into a GdkPixbuf,
    * but constrained to the size of the target ClutterTexture;
@@ -1245,47 +1160,40 @@ load_cogl_texture (const char  *type,
    * texture_width and texture_height are set elsewhere to
    * the width and height of the ClutterTexture
    */
-  GdkPixbuf *pixbuf = gdk_pixbuf_new_from_file_at_size (file,
-                                                        texture_width,
-                                                        texture_height,
-                                                        &error);
+  try
+  {
+    var pixbuf = new Gdk.Pixbuf.from_file_at_size(file,
+                                                  texture_width,
+                                                  texture_height);
+  }
+  catch (Error e)
+  {
+    error("Unable to load image: %s", error.message);
+    Process.exit(1);
+  }
 
-  if (error != NULL)
-    {
-      g_print ("Unable to load %s image: %s\n", type, error->message);
-      g_error_free (error);
-      exit (EXIT_FAILURE);
-    }
-
-  guint rowstride = gdk_pixbuf_get_rowstride (pixbuf);
-  guint width = gdk_pixbuf_get_width (pixbuf);
-  guint height = gdk_pixbuf_get_height (pixbuf);
-  guchar *data = gdk_pixbuf_get_pixels (pixbuf);
-
-  CoglPixelFormat format = COGL_PIXEL_FORMAT_RGB_888;
-  if (gdk_pixbuf_get_has_alpha (pixbuf) == TRUE)
-    format = COGL_PIXEL_FORMAT_RGBA_8888;
-
+  var format = pixbuf.has_alpha ? Cogl.PixelFormat.RGBA_8888
+                                : Cogl.PixelFormat.RGBA_888;
+  
   /* CoglTexture with the same dimensions as the ClutterTexture */
-  CoglHandle *tex = cogl_texture_new_with_size (texture_width,
-                                                texture_height,
-                                                COGL_TEXTURE_NO_SLICING,
-                                                format);
+  Cogl.Handle tex = new Cogl.Texture.with_size(texture_width,
+                                               texture_height,
+                                               Cogl.TextureFlags.NO_SLICING,
+                                               format);
 
   /*
    * load the texture data into a region of the full-sized texture;
    * the size of the region is set from the size of the image data
    * (as resized by GdkPixbuf)
    */
-  cogl_texture_set_region (tex,
-                           0, 0,                          /* from top-left corner of the pixbuf */
-                           (texture_width - width) / 2,   /* center on the CoglTexture */
-                           (texture_height - height) / 2, /* center on the CoglTexture */
-                           width, height,
-                           width, height,
-                           format,
-                           rowstride,
-                           data);
+  tex.set_region(0, 0,                                    /* from top-left corner of the pixbuf */
+                 (texture.width - tex.get_width()) / 2,   /* center on the CoglTexture */
+                 (texture_height - tex.get_height()) / 2, /* center on the CoglTexture */
+                 tex.get_width(), tex.get_height(),
+                 tex.get_width(), tex.get_height(),
+                 format,
+                 pixbuf.rowstride,
+                 data);
 
   return tex;
 }
@@ -1294,7 +1202,7 @@ load_cogl_texture (const char  *type,
             </informalexample>
 
             <para>Because you're copying the image data from the
-            file into a region of the <type>CoglTexture</type>
+            file into a region of the <type>Cogl.Texture</type>
             that's the same size as the image data in the pixbuf, it isn't
             distorted.</para>
 
@@ -1320,7 +1228,7 @@ load_cogl_texture (const char  *type,
           <listitem>
             <para>Make the <varname>top</varname> texture transparent
             and the <varname>bottom</varname> texture opaque (using
-            <function>clutter_state_warp_to_state()</function>). At this
+            <function>State.warp_to_state()</function>). At this
             point, it appears as though the textures haven't changed.</para>
           </listitem>
           <listitem>
@@ -1329,8 +1237,8 @@ load_cogl_texture (const char  *type,
           <listitem>
             <para>When <varname>top</varname> has finished loading,
             fade it in while simultaneously fading out
-            <varname>bottom</varname> (using
-            <function>clutter_state_set_state()</function>).</para>
+            <varname>bottom</varname> (by setting
+            <varname>State.state</varname>).</para>
           </listitem>
         </itemizedlist>
 
@@ -1347,9 +1255,9 @@ load_cogl_texture (const char  *type,
 
       <example id="textures-crossfade-example-1">
         <title>Cross-fading between two images using two
-        <type>ClutterTextures</type></title>
+        <type>Textures</type></title>
         <programlisting>
-<xi:include href="examples/textures-crossfade.c" parse="text">
+<xi:include href="examples/textures-crossfade.vala" parse="text">
   <xi:fallback>there should be a code sample here, but there isn't...</xi:fallback>
 </xi:include>
         </programlisting>
@@ -1358,6 +1266,7 @@ load_cogl_texture (const char  *type,
       <example id="textures-crossfade-example-2">
         <title>Cross-fading between two images using one
         <type>ClutterTexture</type> and the COGL API</title>
+        <note>This example has not yet been converted to Vala</note>
         <programlisting>
 <xi:include href="examples/textures-crossfade-cogl.c" parse="text">
   <xi:fallback>there should be a code sample here, but there isn't...</xi:fallback>
@@ -1369,7 +1278,7 @@ load_cogl_texture (const char  *type,
         <title>A simple slideshow application using two
         <type>ClutterTextures</type></title>
         <programlisting>
-<xi:include href="examples/textures-crossfade-slideshow.c" parse="text">
+<xi:include href="examples/textures-crossfade-slideshow.vala" parse="text">
   <xi:fallback>there should be a code sample here, but there isn't...</xi:fallback>
 </xi:include>
         </programlisting>
