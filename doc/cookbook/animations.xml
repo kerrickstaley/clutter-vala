@@ -121,11 +121,11 @@
 
       <para>The shape of the plot of the alpha function over time is
       called its <emphasis>easing mode</emphasis>. Clutter provides
-      various modes ranging from <constant>CLUTTER_LINEAR</constant>
+      various modes ranging from <constant>AnimationMode.LINEAR</constant>
       (the alpha value is equal to progress along the timeline),
       to modes based on various polynomial and exponential functions,
       to modes providing elastic and bounce shapes. See the
-      ClutterAlpha documentation for examples of the shapes produced
+      Alpha documentation for examples of the shapes produced
       by these functions. There is also a good interactive demo
       of the modes on
       <ulink url="http://www.robertpenner.com/easing/easing_demo.html">Robert Penner's site</ulink>.
@@ -140,21 +140,17 @@
       <informalexample>
         <programlisting>
 <![CDATA[
-static gdouble
-_alpha_ease_in_sextic (ClutterAlpha *alpha,
-                       gpointer      dummy G_GNUC_UNUSED)
- {
-  ClutterTimeline *timeline = clutter_alpha_get_timeline (alpha);
-  gdouble p = clutter_timeline_get_progress (timeline);
-
-  return p * p * p * p * p * p;
+double
+alpha_ease_in_sextic(Alpha alpha)
+{
+  return Math.pow(alpha.timeline.get_progress(), 6);
 }
 ]]>
         </programlisting>
       </informalexample>
 
       <para>An alpha function just has to have a specified method
-      signature and return a <type>gdouble</type> value when called.
+      signature and return a <type>double</type> value when called.
       As stated above, you'd typically base the return value on the
       timeline progress; the function above shows how you get the
       timeline associated with the alpha, so you can apply the alpha
@@ -172,30 +168,30 @@ _alpha_ease_in_sextic (ClutterAlpha *alpha,
       <itemizedlist>
         <listitem>
           <para><emphasis>Implicit animations</emphasis> (created using
-          <function>clutter_actor_animate()</function> and related
-          functions) are useful where you want to apply
+          <function>Actor.animate()</function> and related
+          methods) are useful where you want to apply
           a simple or one-off animation to an actor. They enable you
           to animate one or more properties using a single easing mode;
           however, you only specify the target values for the properties
           you're animating, not the start values.</para>
         </listitem>
         <listitem>
-          <para><emphasis>ClutterAnimator</emphasis> provides support
-          for declarative animations (defined using <type>ClutterScript</type>).
+          <para><emphasis>Animator</emphasis> provides support
+          for declarative animations (defined using <type>Clutter.Script</type>).
           You can animate multiple actors with this approach, and
           have more control over the easing modes used during an
           animation: while implicit animations only allow a single
-          easing mode for all properties, <type>ClutterAnimator</type>
+          easing mode for all properties, <type>Animator</type>
           supports <emphasis>multiple</emphasis> easing modes for
           <emphasis>each</emphasis> property; <emphasis>key frames</emphasis>
           are used to indicate where in the animation each easing mode
           should be applied.</para>
         </listitem>
         <listitem>
-          <para><emphasis>ClutterState</emphasis> enables you to describe
+          <para><emphasis>State</emphasis> enables you to describe
           <emphasis>states</emphasis>: property values across one or
           more actors, plus the easing modes used to transition to
-          those values. It can also be combined with <type>ClutterAnimator</type>
+          those values. It can also be combined with <type>Animator</type>
           for finer grained definition of transitions if desired.</para>
           <para>States are particularly useful if you need actors to
           animate between a known set of positions/sizes/opacities etc.
@@ -225,7 +221,7 @@ _alpha_ease_in_sextic (ClutterAlpha *alpha,
     <section>
       <title>Solution</title>
 
-      <para>Reverse the direction of the <type>ClutterTimeline</type>
+      <para>Reverse the direction of the <type>Timeline</type>
       associated with the animation.</para>
 
       <para>For example, here's how to invert an implicit
